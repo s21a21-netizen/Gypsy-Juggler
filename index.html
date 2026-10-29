@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gypsy Juggler - Circus of the Winds</title>
+    <!-- Tailwind CSS for modern responsive UI overlay -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tone.js for YMO-inspired synthesizer audio & SFX -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <!-- @tonejs/midi for robust MIDI file parsing -->
+    <script src="https://unpkg.com/@tonejs/midi"></script>
+    <!-- Google Fonts for retro/ethnic feel -->
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Press+Start+2P&family=Shantell+Sans:ital,wght@1,400;1,700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Cinzel', serif;
+            background-color: #0c0814;
+            color: #f3e8ff;
+            overflow: hidden;
+            touch-action: none;
+        }
+        .pixel-font {
+            font-family: 'Press+Start+2P', monospace;
+        }
+        .ethnic-border {
+            border: 3px solid #d97706;
+            box-shadow: 0 0 15px rgba(217, 119, 6, 0.4), inset 0 0 15px rgba(217, 119, 6, 0.2);
+        }
+        .glow-text {
+            text-shadow: 0 0 10px #fbbf24, 0 0 20px #d97706;
+        }
+        canvas {
+            display: block;
+            background: radial-gradient(circle at center, #1e1135 0%, #080410 100%);
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col justify-between select-none">
+
+    <!-- Top Bar: Stats & Title -->
+    <header class="w-full bg-[#180f2b]/90 border-b border-amber-600/50 px-4 py-2 flex justify-between items-center z-10">
+        <div class="flex items-center space-x-3">
+            <div class="pixel-font text-amber-400 text-xs md:text-sm tracking-widest glow-text">GYPSY JUGGLER</div>
+            <div class="hidden md:block text-xs text-purple-300 italic">～サーカスと風の旅路～</div>
+        </div>
+        <div class="flex items-center space-x-6">
+            <div class="text-center">
+                <span class="text-[10px] text-amber-500 block uppercase tracking-wider">Score</span>
+                <span id="scoreDisplay" class="pixel-font text-amber-200 text-sm md:text-base">000000</span>
+            </div>
+            <div class="text-center">
+                <span class="text-[10px] text-purple-400 block uppercase tracking-wider">Combo</span>
+                <span id="comboDisplay" class="pixel-font text-pink-400 text-sm md:text-base">x1</span>
+            </div>
+            <div class="text-center">
+                <span class="text-[10px] text-red-400 block uppercase tracking-wider">Lives</span>
+                <div id="livesDisplay" class="text-red-400 text-sm">❤️❤️❤️</div>
+            </div>
+            <div class="flex items-center space-x-2">
+                <label for="midiUpload" class="bg-purple-600 hover:bg-purple-500 text-white px-2 py-1 rounded text-xs pixel-font border border-purple-400 cursor-pointer transition transform active:scale-95 shadow-lg flex items-center gap-1">
+                    📁 MIDI
+                </label>
+                <input type="file" id="midiUpload" accept=".mid,.midi" class="hidden">
+                <button id="audioToggle" class="bg-amber-600/80 hover:bg-amber-500 text-white px-3 py-1 rounded text-xs pixel-font border border-amber-400 transition transform active:scale-95 shadow-lg">
+                    MIDI BGM: OFF
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Game Canvas Container -->
+    <main class="relative flex-1 w-full h-full flex justify-center items-center overflow-hidden">
+        <canvas id="gameCanvas" class="w-full h-full cursor-pointer"></canvas>
+
+        <!-- Start Overlay Screen -->
+        <div id="startScreen" class="absolute inset-0 bg-black/85 backdrop-blur-md flex flex-col justify-center items-center z-20 p-6 text-center">
+            <div class="ethnic-border bg-[#150a24]/95 p-8 rounded-xl max-w-lg w-full shadow-2xl relative">
+                <div class="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-amber-600 text-black pixel-font text-[10px] px-4 py-1 rounded uppercase tracking-widest">
+                    YMO Synth-Circus Stage
+                </div>
+                <h1 class="text-3xl md:text-4xl font-bold text-amber-400 mb-2 glow-text tracking-wide">GYPSY JUGGLER</h1>
+                <p class="text-sm text-purple-300 mb-6 italic">「風をまとい、夜空へ orb を舞い上がらせろ」</p>
+                
+                <div class="bg-black/50 p-4 rounded-lg mb-6 text-left text-xs md:text-sm text-gray-300 space-y-2 border border-purple-900/50">
+                    <p class="text-amber-300 font-bold mb-1">【 遊び方 / HOW TO PLAY 】</p>
+                    <p>✨ 画面の左右タップ・クリック、または <span class="text-amber-400 pixel-font text-[10px]">A / D キー</span> でジプシーを動かし、落ちてくる光のオーブをトス！</p>
+                    <p>🎵 上部の <span class="text-purple-300 font-bold">「📁 MIDI」</span> ボタンからお好みの .mid ファイルをアップロードして再生可能！</p>
+                    <p>🌟 特殊アイテム（スター・ムーン）を取るとボーナススコア＆フィーバータイム！</p>
+                </div>
+
+                <button id="startButton" class="w-full py-3 bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 hover:from-amber-500 hover:to-yellow-400 text-black font-bold pixel-font text-sm rounded shadow-lg transform active:scale-95 transition tracking-widest">
+                    ▶ GAME START
+                </button>
+            </div>
+        </div>
+
+        <!-- Game Over Screen -->
+        <div id="gameOverScreen" class="absolute inset-0 bg-black/90 backdrop-blur-md flex flex-col justify-center items-center z-20 p-6 text-center hidden">
+            <div class="ethnic-border bg-[#150a24]/95 p-8 rounded-xl max-w-md w-full shadow-2xl">
+                <h2 class="text-3xl font-bold text-red-500 mb-2 pixel-font tracking-wider">PERFORMANCE OVER</h2>
+                <p class="text-purple-300 text-sm mb-6">旅のサーカスは続く…… また風が吹くだろう。</p>
+                
+                <div class="bg-black/50 p-4 rounded-lg mb-6 space-y-2 border border-purple-900/50">
+                    <div class="text-xs text-gray-400">FINAL SCORE</div>
+                    <div id="finalScore" class="pixel-font text-2xl text-amber-300 glow-text">000000</div>
+                    <div class="text-xs text-gray-400 pt-2">MAX COMBO</div>
+                    <div id="finalCombo" class="pixel-font text-lg text-pink-400">x1</div>
+                </div>
+
+                <button id="restartButton" class="w-full py-3 bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 hover:from-amber-500 hover:to-yellow-400 text-black font-bold pixel-font text-sm rounded shadow-lg transform active:scale-95 transition tracking-widest">
+                    ↺ TRY AGAIN
+                </button>
+            </div>
+        </div>
+
+        <!-- Floating Message Notification -->
+        <div id="toastMessage" class="absolute top-8 left-1/2 transform -translate-x-1/2 pixel-font text-amber-300 text-xs md:text-sm bg-purple-950/80 px-4 py-2 rounded-full border border-amber-500/50 opacity-0 transition-opacity duration-300 pointer-events-none z-30 glow-text">
+            FEVER TIME!
+        </div>
+    </main>
+
+    <!-- Footer Controls Hint -->
+    <footer class="w-full bg-[#180f2b]/90 border-t border-amber-600/50 px-4 py-2 text-center text-[10px] md:text-xs text-purple-300 z-10 flex justify-between items-center">
+        <span>[A / D] or [Left / Right Click] to Move & Catch</span>
+        <span class="text-amber-400 font-semibold">Gypsy Juggler 1978/2026 Synth Edition</span>
+        <span>[Space] to Toss</span>
+    </footer>
+
+    <!-- Game Engine & Audio Logic -->
+    <script>
+        // --- Game Audio Synthesizer & MIDI Upload Setup ---
+        let audioInitialized = false;
+        let midiPolySynth, midiLeadSynth, midiBassSynth;
+        let midiArpSeq;
+        let isPlayingAudio = false;
+        let uploadedMidiPart = null;
+
+        function initAudio() {
+            if (audioInitialized) return;
+            
+            const notes = ["A3", "C4", "D4", "E4", "G4", "A4", "C5", "D5", "E5"];
+            
+            midiPolySynth = new Tone.PolySynth(Tone.Synth, {
+                oscillator: { type: "square" },
+                envelope: { attack: 0.01, decay: 0.2, sustain: 0.05, release: 0.5 }
+            }).toDestination();
+            midiPolySynth.volume.value = -10;
+
+            midiLeadSynth = new Tone.Synth({
+                oscillator: { type: "sawtooth" },
+                envelope: { attack: 0.05, decay: 0.25, sustain: 0.1, release: 0.4 },
+                filterEnvelope: { attack: 0.02, decay: 0.2, baseFrequency: 200, octaves: 3 }
+            }).toDestination();
+            midiLeadSynth.volume.value = -8;
+
+            midiBassSynth = new Tone.MonoSynth({
+                oscillator: { type: "triangle" },
+                envelope: { attack: 0.02, decay: 0.15, sustain: 0.1, release: 0.2 }
+            }).toDestination();
+            midiBassSynth.volume.value = -6;
+
+            let step = 0;
+            midiArpSeq = new Tone.Loop(time => {
+                if (!isPlayingAudio || uploadedMidiPart) return;
+                const midiBassPattern = ["A1", "A1", "E2", "A1", "F1", "G1", "D2", "E2"];
+                midiBassSynth.triggerAttackRelease(midiBassPattern[step % midiBassPattern.length], "8n", time);
+                
+                if (step % 2 === 0) {
+                    const melodyNote = notes[(step * 3) % notes.length];
+                    midiLeadSynth.triggerAttackRelease(melodyNote, "16n", time);
+                }
+                step++;
+            }, "8n");
+
+            Tone.Transport.bpm.value = 124;
+            audioInitialized = true;
+        }
+
+        function toggleAudio() {
+            initAudio();
+            isPlayingAudio = !isPlayingAudio;
+            const btn = document.getElementById('audioToggle');
+            if (isPlayingAudio) {
+                Tone.start();
+                Tone.Transport.start();
+                if (!uploadedMidiPart) midiArpSeq.start(0);
+                btn.textContent = "MIDI BGM: ON";
+                btn.classList.add('bg-emerald-600');
+                btn.classList.remove('bg-amber-600');
+            } else {
+                Tone.Transport.stop();
+                if (!uploadedMidiPart) midiArpSeq.stop();
+                if (uploadedMidiPart) uploadedMidiPart.stop();
+                btn.textContent = "MIDI BGM: OFF";
+                btn.classList.remove('bg-emerald-600');
+                btn.classList.add('bg-amber-600');
+            }
+        }
+
+        document.getElementById('audioToggle').addEventListener('click', toggleAudio);
+
+        // MIDI File Uploader Handling
+        document.getElementById('midiUpload').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            initAudio();
+            const reader = new FileReader();
+            reader.onload = async function (event) {
+                try {
+                    const midi = new Midi(event.target.result);
+                    
+                    // Stop previous uploaded part if any
+                    if (uploadedMidiPart) {
+                        uploadedMidiPart.dispose();
+                    }
+
+                    Tone.Transport.stop();
+                    Tone.Transport.cancel(0);
+
+                    if (midi.header && midi.header.bpm) {
+                        Tone.Transport.bpm.value = midi.header.bpm || 120;
+                    }
+
+                    // Extract note events from all tracks and schedule them in Tone.Transport
+                    const notesToSchedule = [];
+                    midi.tracks.forEach(track => {
+                        track.notes.forEach(note => {
+                            notesToSchedule.push({
+                                time: note.time,
+                                note: note.name,
+                                duration: note.duration,
+                                velocity: note.velocity
+                            });
+                        });
+                    });
+
+                    if (notesToSchedule.length === 0) {
+                        showToast("MIDI内にノートが見つかりませんでした");
+                        return;
+                    }
+
+                    uploadedMidiPart = new Tone.Part((time, value) => {
+                        midiPolySynth.triggerAttackRelease(value.note, value.duration, time, value.velocity);
+                    }, notesToSchedule).start(0);
+
+                    uploadedMidiPart.loop = true;
+                    uploadedMidiPart.loopEnd = midi.duration;
+
+                    isPlayingAudio = true;
+                    Tone.start();
+                    Tone.Transport.start();
+
+                    const btn = document.getElementById('audioToggle');
+                    btn.textContent = "MIDI BGM: ON";
+                    btn.classList.add('bg-emerald-600');
+                    btn.classList.remove('bg-amber-600');
+
+                    showToast(`MIDI読み込み成功: ${file.name}`);
+                } catch (err) {
+                    console.error(err);
+                    showToast("MIDIの解析に失敗しました");
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        // --- Game Core Engine ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let gameState = 'START'; // START, PLAYING, GAMEOVER
+        let score = 0;
+        let combo = 1;
+        let lives = 3;
+        let maxCombo = 1;
+        let feverTimer = 0;
+        let isFever = false;
+
+        // Player (Gypsy Juggler)
+        let player = {
+            x: 0,
+            y: 0,
+            width: 70,
+            height: 90,
+            vx: 0,
+            speed: 8,
+            targetX: 0
+        };
+
+        // Balls & Items Juggling Collection
+        let items = [];
+        let particles = [];
+        let backgroundStars = [];
+
+        // Resize Canvas dynamically
+        function resizeCanvas() {
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+            player.y = canvas.height - 130;
+            if (player.x === 0) player.x = canvas.width / 2;
+            player.targetX = player.x;
+
+            // Generate background floating star dust
+            backgroundStars = [];
+            for (let i = 0; i < 60; i++) {
+                backgroundStars.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    radius: Math.random() * 2 + 0.5,
+                    alpha: Math.random() * 0.7 + 0.3,
+                    speed: Math.random() * 0.5 + 0.2
+                });
+            }
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // Input Handling (Mouse / Touch / Keyboard)
+        let keys = { left: false, right: false };
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = true;
+            if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = true;
+            if (e.key === ' ' && gameState === 'PLAYING') tossManualBall();
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = false;
+            if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = false;
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            player.targetX = e.clientX - rect.left;
+        });
+
+        canvas.addEventListener('touchmove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            if (e.touches.length > 0) {
+                player.targetX = e.touches[0].clientX - rect.left;
+            }
+        }, { passive: true });
+
+        canvas.addEventListener('click', (e) => {
+            if (gameState === 'PLAYING') {
+                // Spawn a little manual bounce impulse
+                createSparkles(player.x, player.y, '#fbbf24');
+            }
+        });
+
+        // Item Class (Orbs, Stars, Moons)
+        class Item {
+            constructor(x, y, type = 'orb') {
+                this.x = x;
+                this.y = y;
+                this.vx = (Math.random() - 0.5) * 4;
+                this.vy = -(Math.random() * 6 + 10); // Initial upward toss velocity
+                this.radius = type === 'orb' ? 14 : 18;
+                this.type = type; // 'orb', 'star', 'moon'
+                this.color = type === 'star' ? '#f59e0b' : (type === 'moon' ? '#38bdf8' : '#ec4899');
+                this.rotation = Math.random() * Math.PI;
+                this.rotSpeed = (Math.random() - 0.5) * 0.1;
+                this.active = true;
+            }
+
+            update() {
+                this.vy += 0.35; // Gravity
+                this.x += this.vx;
+                this.y += this.vy;
+                this.rotation += this.rotSpeed;
+
+                // Wall bouncing
+                if (this.x < this.radius || this.x > canvas.width - this.radius) {
+                    this.vx *= -0.8;
+                }
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.rotation);
+
+                if (this.type === 'orb') {
+                    // Glowing sphere
+                    const grad = ctx.createRadialGradient(0, 0, 2, 0, 0, this.radius);
+                    grad.addColorStop(0, '#ffffff');
+                    grad.addColorStop(0.4, this.color);
+                    grad.addColorStop(1, 'rgba(0,0,0,0.8)');
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                } else if (this.type === 'star') {
+                    // Golden star item
+                    ctx.fillStyle = '#f59e0b';
+                    ctx.shadowColor = '#fbbf24';
+                    ctx.shadowBlur = 10;
+                    drawStar(ctx, 0, 0, 5, this.radius, this.radius / 2);
+                    ctx.fill();
+                } else if (this.type === 'moon') {
+                    // Crescent moon item
+                    ctx.fillStyle = '#38bdf8';
+                    ctx.shadowColor = '#38bdf8';
+                    ctx.shadowBlur = 10;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                ctx.restore();
+            }
+        }
+
+        function drawStar(ctx, cx, cy, spikes, outerRadius, innerRadius) {
+            let rot = (Math.PI / 2) * 3;
+            let x = cx;
+            let y = cy;
+            let step = Math.PI / spikes;
+
+            ctx.beginPath();
+            ctx.moveTo(cx, cy - outerRadius);
+            for (let i = 0; i < spikes; i++) {
+                x = cx + Math.cos(rot) * outerRadius;
+                y = cy + Math.sin(rot) * outerRadius;
+                ctx.lineTo(x, y);
+                rot += step;
+
+                x = cx + Math.cos(rot) * innerRadius;
+                y = cy + Math.sin(rot) * innerRadius;
+                ctx.lineTo(x, y);
+                rot += step;
+            }
+            ctx.lineTo(cx, cy - outerRadius);
+            ctx.closePath();
+        }
+
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                this.vx = (Math.random() - 0.5) * 6;
+                this.vy = (Math.random() - 0.5) * 6;
+                this.alpha = 1;
+                this.color = color;
+                this.size = Math.random() * 4 + 2;
+            }
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.alpha -= 0.03;
+            }
+            draw() {
+                ctx.save();
+                ctx.globalAlpha = Math.max(this.alpha, 0);
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        function createSparkles(x, y, color) {
+            for (let i = 0; i < 12; i++) {
+                particles.push(new Particle(x, y, color));
+            }
+        }
+
+        function showToast(text) {
+            const toast = document.getElementById('toastMessage');
+            toast.textContent = text;
+            toast.style.opacity = '1';
+            setTimeout(() => {
+                toast.style.opacity = '0';
+            }, 1800);
+        }
+
+        // Spawn initial items
+        function spawnItemWave() {
+            const types = ['orb', 'orb', 'orb', Math.random() > 0.7 ? 'star' : 'orb', Math.random() > 0.85 ? 'moon' : 'orb'];
+            const type = types[Math.floor(Math.random() * types.length)];
+            const spawnX = Math.random() * (canvas.width - 100) + 50;
+            items.push(new Item(spawnX, 50, type));
+        }
+
+        let spawnCounter = 0;
+
+        function startGame() {
+            score = 0;
+            combo = 1;
+            maxCombo = 1;
+            lives = 3;
+            items = [];
+            particles = [];
+            feverTimer = 0;
+            isFever = false;
+            gameState = 'PLAYING';
+
+            document.getElementById('startScreen').classList.add('hidden');
+            document.getElementById('gameOverScreen').classList.add('hidden');
+
+            // Initial 3 orbs for immediate juggling action
+            items.push(new Item(canvas.width / 2 - 60, 100, 'orb'));
+            items.push(new Item(canvas.width / 2, 80, 'orb'));
+            items.push(new Item(canvas.width / 2 + 60, 120, 'star'));
+
+            if (!isPlayingAudio) {
+                toggleAudio();
+            }
+        }
+
+        document.getElementById('startButton').addEventListener('click', startGame);
+        document.getElementById('restartButton').addEventListener('click', startGame);
+
+        // --- Main Game Loop ---
+        let lastSpawnTime = 0;
+
+        function update(timestamp) {
+            // Background Stars Animation
+            backgroundStars.forEach(star => {
+                star.y += star.speed;
+                if (star.y > canvas.height) star.y = 0;
+            });
+
+            if (gameState === 'PLAYING') {
+                // Keyboard movement
+                if (keys.left) player.targetX -= 12;
+                if (keys.right) player.targetX += 12;
+
+                // Smooth interpolation for player movement
+                player.x += (player.targetX - player.x) * 0.2;
+                player.x = Math.max(player.width / 2, Math.min(canvas.width - player.width / 2, player.x));
+
+                // Periodic item spawn
+                if (!lastSpawnTime) lastSpawnTime = timestamp;
+                if (timestamp - lastSpawnTime > (isFever ? 1200 : 2500) && items.length < 8) {
+                    spawnItemWave();
+                    lastSpawnTime = timestamp;
+                }
+
+                // Fever Timer countdown
+                if (isFever) {
+                    feverTimer--;
+                    if (feverTimer <= 0) {
+                        isFever = false;
+                        showToast("FEVER ENDED");
+                    }
+                }
+
+                // Update Items & Collision with Gypsy Juggler's Hands
+                for (let i = items.length - 1; i >= 0; i--) {
+                    let item = items[i];
+                    item.update();
+
+                    // Check collision with player hands area (top of player silhouette)
+                    const handY = player.y - 20;
+                    const handSpread = 45;
+                    const leftHandX = player.x - handSpread;
+                    const rightHandX = player.x + handSpread;
+
+                    const distLeft = Math.hypot(item.x - leftHandX, item.y - handY);
+                    const distRight = Math.hypot(item.x - rightHandX, item.y - handY);
+
+                    if ((distLeft < item.radius + 20 || distRight < item.radius + 20) && item.vy > 0) {
+                        // Successful Toss!
+                        item.vy = -(Math.random() * 5 + (isFever ? 14 : 11)); // Toss up
+                        item.vx += (Math.random() - 0.5) * 6; // Add subtle spin/drift
+
+                        // Audio MIDI Synth chime feedback
+                        if (isPlayingAudio && audioInitialized) {
+                            const midiChimes = ['A4', 'C5', 'E5', 'G5', 'A5', 'C6'];
+                            midiPolySynth.triggerAttackRelease(midiChimes[Math.floor(Math.random() * midiChimes.length)], "16n");
+                        }
+
+                        // Score & Combo calculation
+                        combo = Math.min(combo + 1, 50);
+                        if (combo > maxCombo) maxCombo = combo;
+                        
+                        let points = 100 * combo;
+                        if (item.type === 'star') {
+                            points *= 3;
+                            createSparkles(item.x, item.y, '#f59e0b');
+                            showToast("STAR BONUS! +300");
+                        } else if (item.type === 'moon') {
+                            points *= 5;
+                            isFever = true;
+                            feverTimer = 300; // ~5 seconds fever
+                            createSparkles(item.x, item.y, '#38bdf8');
+                            showToast("MOON FEVER TIME!");
+                        } else {
+                            createSparkles(item.x, item.y, item.color);
+                        }
+
+                        score += points;
+                    }
+
+                    // Check if item falls to the ground (Miss!)
+                    if (item.y > canvas.height + 30) {
+                        items.splice(i, 1);
+                        combo = 1;
+                        lives--;
+                        createSparkles(item.x, canvas.height - 40, '#ef4444');
+
+                        if (isPlayingAudio && audioInitialized) {
+                            midiBassSynth.triggerAttackRelease("C1", "8n");
+                        }
+
+                        if (lives <= 0) {
+                            gameState = 'GAMEOVER';
+                            document.getElementById('finalScore').textContent = String(score).padStart(6, '0');
+                            document.getElementById('finalCombo').textContent = `x${maxCombo}`;
+                            document.getElementById('gameOverScreen').classList.remove('hidden');
+
+                            if (isPlayingAudio && audioInitialized) {
+                                midiBassSynth.triggerAttackRelease("A0", "2n");
+                            }
+                        }
+                    }
+                }
+
+                // Update particles
+                for (let i = particles.length - 1; i >= 0; i--) {
+                    particles[i].update();
+                    if (particles[i].alpha <= 0) {
+                        particles.splice(i, 1);
+                    }
+                }
+            }
+
+            // Update UI elements
+            document.getElementById('scoreDisplay').textContent = String(score).padStart(6, '0');
+            document.getElementById('comboDisplay').textContent = `x${combo}`;
+            
+            let hearts = '';
+            for (let i = 0; i < lives; i++) hearts += '❤️';
+            document.getElementById('livesDisplay').textContent = hearts;
+        }
+
+        // --- Render Function ---
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw Background Star Dust
+            ctx.fillStyle = '#ffffff';
+            backgroundStars.forEach(star => {
+                ctx.globalAlpha = star.alpha;
+                ctx.beginPath();
+                ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            ctx.globalAlpha = 1.0;
+
+            // Draw YMO / Ethnic Circus Stage Horizon glow
+            const stageGlow = ctx.createRadialGradient(canvas.width / 2, canvas.height, 50, canvas.width / 2, canvas.height, canvas.width * 0.7);
+            stageGlow.addColorStop(0, isFever ? 'rgba(56, 189, 248, 0.25)' : 'rgba(217, 119, 6, 0.2)');
+            stageGlow.addColorStop(1, 'transparent');
+            ctx.fillStyle = stageGlow;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw Gypsy Juggler Character Silhouette & Attire
+            ctx.save();
+            ctx.translate(player.x, player.y);
+
+            // Turban / Hat with feather
+            ctx.fillStyle = '#b45309';
+            ctx.beginPath();
+            ctx.ellipse(0, -45, 28, 16, 0, 0, Math.PI * 2);
+            ctx.fill();
+            // Feather
+            ctx.fillStyle = '#38bdf8';
+            ctx.beginPath();
+            ctx.moveTo(15, -55);
+            ctx.quadraticCurveTo(35 - Math.sin(Date.now() * 0.005) * 8, -75, 25, -85);
+            ctx.quadraticCurveTo(5, -70, 10, -50);
+            ctx.fill();
+
+            // Gypsy Robe / Poncho with ethnic patterns
+            ctx.fillStyle = isFever ? '#38bdf8' : '#7c2d12';
+            ctx.beginPath();
+            ctx.moveTo(-player.width / 2, 20);
+            ctx.lineTo(player.width / 2, 20);
+            ctx.lineTo(player.width / 2 + 10, player.height);
+            ctx.lineTo(-player.width / 2 - 10, player.height);
+            ctx.closePath();
+            ctx.fill();
+
+            // Hands / Arms outstretched for juggling
+            ctx.strokeStyle = '#fcd34d';
+            ctx.lineWidth = 6;
+            ctx.lineCap = 'round';
+            // Left hand
+            ctx.beginPath();
+            ctx.moveTo(-20, 0);
+            ctx.lineTo(-45, -20 + Math.sin(Date.now() * 0.01) * 5);
+            ctx.stroke();
+            // Right hand
+            ctx.beginPath();
+            ctx.moveTo(20, 0);
+            ctx.lineTo(45, -20 - Math.sin(Date.now() * 0.01) * 5);
+            ctx.stroke();
+
+            ctx.restore();
+
+            // Render Items & Particles
+            items.forEach(item => item.draw());
+            particles.forEach(p => p.draw());
+        }
+
+        // Loop Runner
+        function gameLoop(timestamp) {
+            update(timestamp);
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>
